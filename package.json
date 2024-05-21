@@ -1,0 +1,31 @@
+{
+  "name": "bottelegemini",
+  "version": "1.0.0",
+  "description": "A telegram Bot with Gemini AI",
+  "main": "index.js",
+  "scripts": {
+    "test": "node index.js",
+    "start": "pm2 start index.js --name botTeleGemini --watch",
+    "dev": "nodemon index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jayyidsptr/botTeleGemini"
+  },
+  "keywords": [
+    "telegran",
+    "bottele",
+    "gemini",
+    "ai",
+    "api",
+    "chatbot"
+  ],
+  "author": "jayyidsptr",
+  "license": "ISC",
+  "dependencies": {
+    "@google/generative-ai": "^0.11.3",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "node-telegram-bot-api": "^0.66.0"
+  }
+}
