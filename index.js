@@ -2,6 +2,7 @@ const TelegramBot = require('node-telegram-bot-api');
 const { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } = require("@google/generative-ai");
 const express = require('express');
 const dotenv = require('dotenv');
+const game = require("./quiz/game");
 
 dotenv.config();
 
@@ -86,6 +87,7 @@ const safetySettings = [
 ];
 
 let chatSession;
+let aiEnabled = false;
 
 const bot = new TelegramBot(token, {polling: true});
 
@@ -96,7 +98,7 @@ bot.onText(/\/start/, (msg) => {
 
 bot.onText(/\/help/, async (msg) => {
   const chatId = msg.chat.id;
-  if (chatSession) {
+  if (aiEnabled) {
     // Jika bot telah diaktifkan, tampilkan pesan help untuk mode chat
     bot.sendMessage(chatId, 'Ketik apa saja untuk memulai mengobrol dengan bot.\n\nGunakan /quit untuk keluar dari chat.', {
       reply_markup: {
@@ -127,48 +129,80 @@ bot.onText(/\/about/, (msg) => {
 });
 
 bot.onText(/\/enable/, (msg) => {
+  aiEnabled = true;
   chatSession = model.startChat({
     generationConfig,
     safetySettings,
-    history: [
-    ],
   });
-  const chatId = msg.chat.id;
-  bot.sendMessage(chatId, 'Bot telah diaktifkan. Silakan kirim pesan atau pertanyaan.\n\nUntuk mengaktifkannya kembali cukup ketik perintah /enable.');
+  bot.sendMessage(msg.chat.id, "Bot telah diaktifkan.");
 });
 
-bot.on('message', async (msg) => {
-  const chatId = msg.chat.id;
-  if (!chatSession) {
-    if (msg.text === '/quit') {
-      bot.sendMessage(chatId, 'Bot belum aktif. Silahkan mendaftar terlebih dahulu.', {
-      reply_markup: {
-        inline_keyboard: [
-          [{text: 'Daftar', url: process.env.REGISTRATION_URL}]
-        ]
-      }
-    });
-      return;
-   }
-    bot.sendMessage(chatId, 'Bot belum diaktifkan. Silakan mendaftar terlebih dahulu.', {
-    reply_markup: {
-      inline_keyboard: [
-        [{text: 'Daftar', url: process.env.REGISTRATION_URL}]
-      ]
-    }
+bot.onText(/\/disable/, (msg) => {
+  aiEnabled = false;
+  chatSession = null;
+  bot.sendMessage(msg.chat.id, "Bot telah dinonaktifkan.");
 });
-return;
-  }
-  if (msg.text === '/quit') {
-    bot.sendMessage(chatId, 'Bot telah dinonaktifkan. Terima kasih.');
+
+bot.onText(/\/quit/, (msg) => {
+  if (aiEnabled) {
+    aiEnabled = false;
     chatSession = null;
-    return;
+    bot.sendMessage(msg.chat.id, "Kamu telah keluar dari chat.");
+  } else {
+    bot.sendMessage(msg.chat.id, "Kamu tidak berada dalam mode chat.");
   }
-  try {
-    const result = await chatSession.sendMessage(msg.text);
-    bot.sendMessage(chatId, result.response.text());
-  } catch (error) {
-    botsendMessage(chatId, 'Terjadi kesalahan, silakan coba lagi.');
+});
+
+bot.onText(/\/play/, (msg) => {
+  const chatId = msg.chat.id;
+  bot.sendMessage(
+    chatId,
+    "Hai! Mari bermain teka-teki. Saya akan memberikan soal, dan kamu coba menjawabnya."
+  );
+
+  let currentQuestion = game.getRandomQuestion();
+  bot.sendMessage(chatId, `Soal: ${currentQuestion.soal}`);
+
+  let gameOver = false;
+  const handleMessage = async (msg) => {
+    if (!aiEnabled && msg.chat.id === chatId) {
+      if (msg.text === "/stop") {
+        gameOver = true;
+        bot.sendMessage(chatId, "Game berhenti. Terima kasih telah bermain!");
+        bot.removeListener("message", handleMessage); // Remove the event listener
+      } else if (msg.text === "/nyerah") {
+        bot.sendMessage(chatId, `Jawaban: ${currentQuestion.jawaban}`);
+        bot.sendMessage(chatId, `Deskripsi: ${currentQuestion.deskripsi}`);
+        setTimeout(() => {
+          currentQuestion = game.getRandomQuestion();
+          bot.sendMessage(chatId, `Soal: ${currentQuestion.soal}`);
+        }, 5000);
+      } else {
+        const jawaban = msg.text;
+        const benar = game.checkAnswer(jawaban, currentQuestion);
+        if (benar) {
+          bot.sendMessage(
+            chatId,
+            "Jawaban benar! Saya akan memberikan soalan seterusnya."
+          );
+          currentQuestion = game.getRandomQuestion();
+          bot.sendMessage(chatId, `Soal: ${currentQuestion.soal}`);
+        } else {
+          bot.sendMessage(chatId, "Jawaban salah. Coba lagi!");
+        }
+      }
+    }
+  };
+  bot.on("message", handleMessage);
+});
+
+bot.on("message", async (msg) => {
+  const chatId = msg.chat.id;
+  if (aiEnabled) {
+    if (msg.text) {
+      const result = await chatSession.sendMessage(msg.text);
+      bot.sendMessage(chatId, result.response.text());
+    }
   }
 });
 
