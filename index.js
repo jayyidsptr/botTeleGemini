@@ -1,7 +1,11 @@
-const TelegramBot = require('node-telegram-bot-api');
-const { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } = require("@google/generative-ai");
-const express = require('express');
-const dotenv = require('dotenv');
+const TelegramBot = require("node-telegram-bot-api");
+const {
+  GoogleGenerativeAI,
+  HarmCategory,
+  HarmBlockThreshold,
+} = require("@google/generative-ai");
+const express = require("express");
+const dotenv = require("dotenv");
 const game = require("./quiz/game");
 
 dotenv.config();
@@ -11,8 +15,8 @@ const token = process.env.BOT_TOKEN;
 const apiKey = process.env.GEMINI_API_KEY;
 const genAI = new GoogleGenerativeAI(apiKey);
 
-app.get('/', (req, res) => {
-    const html = `
+app.get("/", (req, res) => {
+  const html = `
     <html>
     <head>
         <title>praAI BOT - Telegram</title>
@@ -52,7 +56,7 @@ app.get('/', (req, res) => {
     </body>
 </html>
     `;
-    res.send(html);
+  res.send(html);
 });
 
 const model = genAI.getGenerativeModel({
@@ -89,43 +93,64 @@ const safetySettings = [
 let chatSession;
 let aiEnabled = false;
 
-const bot = new TelegramBot(token, {polling: true});
+const bot = new TelegramBot(token, { polling: true });
 
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
-  bot.sendMessage(chatId, 'Hai! Aktifkan bot ini dengan mendaftar terlebih dahulu, lalu ketik pesan atau pertanyaan untuk mendapatkan respon.\n\nJangan lupa follow sosial media author:\nInstagram: instagram.com/jayyidsptr\nTelegram: jayyidsptrr.t.me\nTrakteer: trakteer.id/jayyidsptr/tip\nSaweria: saweria.co/jayyidsptr/tip');
+  bot.sendMessage(
+    chatId,
+    "Hai! Aktifkan bot ini dengan mendaftar terlebih dahulu, lalu ketik pesan atau pertanyaan untuk mendapatkan respon.\n\nJangan lupa follow sosial media author:\nInstagram: instagram.com/jayyidsptr\nTelegram: jayyidsptrr.t.me\nTrakteer: trakteer.id/jayyidsptr/tip\nSaweria: saweria.co/jayyidsptr/tip",
+    {
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: "Daftar", url: process.env.REGISTRATION_URL }],
+        ],
+      },
+    }
+  );
 });
 
 bot.onText(/\/help/, async (msg) => {
   const chatId = msg.chat.id;
   if (aiEnabled) {
     // Jika bot telah diaktifkan, tampilkan pesan help untuk mode chat
-    bot.sendMessage(chatId, 'Ketik apa saja untuk memulai mengobrol dengan bot.\n\nGunakan /quit untuk keluar dari chat.', {
-      reply_markup: {
-        remove_keyboard: true
+    bot.sendMessage(
+      chatId,
+      "Ketik apa saja untuk memulai mengobrol dengan bot.\n\nGunakan /quit untuk keluar dari chat.",
+      {
+        reply_markup: {
+          remove_keyboard: true,
+        },
       }
-    });
+    );
   } else {
     // Jika bot belum diaktifkan, tampilkan pesan help untuk mode non-chat
     const keyboard = [
       [
         {
-          text: 'Daftar',
-          url: process.env.REGISTRATION_URL
-        }
-      ]
+          text: "Daftar",
+          url: process.env.REGISTRATION_URL,
+        },
+      ],
     ];
-    bot.sendMessage(chatId, 'Bot ini dapat diaktifkan dengan mendaftar terlebih dahulu. Setelah diaktifkan, ketik pesan atau pertanyaan untuk mendapatkan respon.\n\nUntuk keluar dari chat, ketik /quit.', {
-      reply_markup: {
-        inline_keyboard: keyboard
+    bot.sendMessage(
+      chatId,
+      "Bot ini dapat diaktifkan dengan mendaftar terlebih dahulu. Setelah diaktifkan, ketik pesan atau pertanyaan untuk mendapatkan respon.\n\nUntuk keluar dari chat, ketik /quit.",
+      {
+        reply_markup: {
+          inline_keyboard: keyboard,
+        },
       }
-    });
+    );
   }
 });
 
 bot.onText(/\/about/, (msg) => {
   const chatId = msg.chat.id;
-  bot.sendMessage(chatId, 'Bot ini dibangun menggunakan Google Generative AI API dan Telegram Bot API.');
+  bot.sendMessage(
+    chatId,
+    "Bot ini dibangun menggunakan Google Generative AI API dan Telegram Bot API."
+  );
 });
 
 bot.onText(/\/enable/, (msg) => {
@@ -159,41 +184,91 @@ bot.onText(/\/play/, (msg) => {
     chatId,
     "Hai! Mari bermain teka-teki. Saya akan memberikan soal, dan kamu coba menjawabnya."
   );
-
   let currentQuestion = game.getRandomQuestion();
-  bot.sendMessage(chatId, `Soal: ${currentQuestion.soal}`);
+  setTimeout(() => {
+    bot.sendMessage(chatId, `*Soal:*\n\n${currentQuestion.soal}`, {
+      parse_mode: "Markdown",
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: "Nyerah", callback_data: "/nyerah" }],
+          [{ text: "Stop", callback_data: "/stop" }],
+        ],
+      },
+    });
+  }, 3000);
 
   let gameOver = false;
-  const handleMessage = async (msg) => {
-    if (!aiEnabled && msg.chat.id === chatId) {
-      if (msg.text === "/stop") {
+  const handleCallbackQuery = async (query) => {
+    if (!aiEnabled && query.message.chat.id === chatId) {
+      if (query.data === "/stop") {
         gameOver = true;
         bot.sendMessage(chatId, "Game berhenti. Terima kasih telah bermain!");
-        bot.removeListener("message", handleMessage); // Remove the event listener
-      } else if (msg.text === "/nyerah") {
-        bot.sendMessage(chatId, `Jawaban: ${currentQuestion.jawaban}`);
-        bot.sendMessage(chatId, `Deskripsi: ${currentQuestion.deskripsi}`);
+        bot.removeListener("callback_query", handleCallbackQuery); // Remove the event listener
+      } else if (query.data === "/nyerah") {
+        bot.sendMessage(chatId, `*Jawaban:* ${currentQuestion.jawaban}`, {
+          parse_mode: "Markdown",
+        });
+        bot.sendMessage(chatId, `*Deskripsi:* ${currentQuestion.deskripsi}`, {
+          parse_mode: "Markdown",
+        });
+        bot.sendMessage(
+          chatId,
+          "Mari kita lanjut ke soal berikutnya, Semangat!!!"
+        );
         setTimeout(() => {
           currentQuestion = game.getRandomQuestion();
-          bot.sendMessage(chatId, `Soal: ${currentQuestion.soal}`);
+          bot.sendMessage(chatId, `Soal:\n\n${currentQuestion.soal}`, {
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: "Nyerah", callback_data: "/nyerah" }],
+                [{ text: "Stop", callback_data: "/stop" }],
+              ],
+            },
+          });
         }, 5000);
-      } else {
-        const jawaban = msg.text;
-        const benar = game.checkAnswer(jawaban, currentQuestion);
-        if (benar) {
-          bot.sendMessage(
-            chatId,
-            "Jawaban benar! Saya akan memberikan soalan seterusnya."
-          );
-          currentQuestion = game.getRandomQuestion();
-          bot.sendMessage(chatId, `Soal: ${currentQuestion.soal}`);
-        } else {
-          bot.sendMessage(chatId, "Jawaban salah. Coba lagi!");
-        }
       }
     }
   };
+
+  // Handle messages
+  const handleMessage = async (msg) => {
+    if (!aiEnabled && msg.chat.id === chatId) {
+      if (gameOver) {
+        return;
+      }
+
+      const jawaban = msg.text;
+      const benar = game.checkAnswer(jawaban, currentQuestion);
+      if (benar) {
+        bot.sendMessage(
+          chatId,
+          "Jawaban benar! Saya akan memberikan soalan seterusnya."
+        );
+        currentQuestion = game.getRandomQuestion();
+        bot.sendMessage(chatId, `*Soal:*\n\n${currentQuestion.soal}`, {
+          parse_mode: "Markdown",
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: "Nyerah", callback_data: "/nyerah" }],
+              [{ text: "Stop", callback_data: "/stop" }],
+            ],
+          },
+        });
+      } else {
+        bot.sendMessage(chatId, "Jawaban salah. Coba lagi!", {
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: "Nyerah", callback_data: "/nyerah" }],
+              [{ text: "Stop", callback_data: "/stop" }],
+            ],
+          },
+        });
+      }
+    }
+  };
+
   bot.on("message", handleMessage);
+  bot.on("callback_query", handleCallbackQuery);
 });
 
 bot.on("message", async (msg) => {
@@ -210,4 +285,3 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT);
 
 console.log(`bot start running & server running on port ${PORT}`);
-
